@@ -1,0 +1,749 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>STLAS - Smart Traffic Light AI System</title>
+<meta name="description" content="Smart Traffic Light AI System - Real-time dashboard using Propositional Logic and Hill Climbing optimization for intelligent traffic management." />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link href="https://fonts.googleapis.com/css?family=Inter:wght@300;400;500;600;700;800&family=Roboto+Mono:wght@400;500&display=swap" rel="stylesheet" />
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<style>
+:root {
+  --bg: #0d1117; --surface: #161b22; --surface2: #1c2333; --border: #30363d;
+  --cyan: #00d4ff; --green: #00ff99; --amber: #ffb347; --red: #ff4757; --purple: #a371f7;
+  --text: #e6edf3; --text-dim: #8b949e;
+  --glow-cyan: 0 0 12px rgba(0, 212, 255, 0.4);
+  --glow-green: 0 0 12px rgba(0, 255, 153, 0.4);
+  --glow-amber: 0 0 12px rgba(255, 179, 71, 0.5);
+  --glow-red: 0 0 12px rgba(255, 71, 87, 0.4);
+}
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+html { font-size: 14px; }
+body {
+  font-family: 'Inter', sans-serif; background: var(--bg); color: var(--text);
+  min-height: 100vh; overflow-x: hidden;
+}
+::-webkit-scrollbar { width: 6px; }
+::-webkit-scrollbar-track { background: var(--surface); }
+::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+#header {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 0 24px; height: 56px; background: rgba(22, 27, 34, 0.9);
+  border-bottom: 1px solid var(--border); backdrop-filter: blur(12px);
+  position: sticky; top: 0; z-index: 100;
+}
+.header-left { display: flex; align-items: center; gap: 16px; }
+.logo { font-size: 1.25rem; font-weight: 800; letter-spacing: -0.5px; }
+.logo span:first-child { color: var(--cyan); }
+.logo-sub { font-size: 0.75rem; color: var(--text-dim); font-weight: 400; margin-left: 4px; }
+.status-pill {
+  display: flex; align-items: center; gap: 6px; padding: 4px 12px;
+  border-radius: 20px; background: rgba(0, 255, 153, 0.1);
+  border: 1px solid rgba(0, 255, 153, 0.3); font-size: 0.7rem;
+  font-weight: 600; color: var(--green); text-transform: uppercase; letter-spacing: 1px;
+}
+.status-dot {
+  width: 6px; height: 6px; border-radius: 50%; background: var(--green);
+  animation: pulse-green 1.5s ease-in-out infinite;
+}
+@keyframes pulse-green {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(0, 255, 153, 0.6); }
+  50% { box-shadow: 0 0 0 5px rgba(0, 255, 153, 0); }
+}
+.header-right { display: flex; align-items: center; gap: 20px; }
+#live-clock { font-family: 'Roboto Mono', monospace; font-size: 0.85rem; color: var(--text-dim); }
+.hdr-icon { font-size: 1.1rem; cursor: pointer; opacity: 0.7; }
+.hdr-icon:hover { opacity: 1; }
+#main {
+  display: grid; grid-template-columns: 280px 1fr 300px;
+  grid-template-rows: auto auto; gap: 16px; padding: 16px;
+  min-height: calc(100vh - 56px);
+}
+.card {
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: 12px; padding: 16px; position: relative; overflow: hidden;
+}
+.card-title {
+  font-size: 0.75rem; font-weight: 600; text-transform: uppercase;
+  letter-spacing: 1.2px; color: var(--text-dim); margin-bottom: 14px;
+  display: flex; align-items: center; gap: 8px;
+}
+.card-title .accent { color: var(--cyan); }
+#panel-perception { grid-column: 1; grid-row: 1; }
+.dir-card {
+  background: var(--surface2); border: 1px solid var(--border);
+  border-radius: 8px; padding: 10px 12px; margin-bottom: 8px; transition: border-color 0.3s;
+}
+.dir-card.active-dir { border-color: var(--green); box-shadow: var(--glow-green); }
+.dir-card-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; }
+.dir-label { font-weight: 700; font-size: 0.8rem; letter-spacing: 0.5px; }
+.dir-count-badge {
+  display: flex; align-items: center; gap: 5px; background: rgba(0, 212, 255, 0.12);
+  border: 1px solid rgba(0, 212, 255, 0.25); border-radius: 6px; padding: 2px 8px;
+  font-family: 'Roboto Mono', monospace; font-size: 0.85rem; font-weight: 600; color: var(--cyan);
+}
+.slider-wrap { position: relative; margin-bottom: 8px; }
+input[type=range] {
+  -webkit-appearance: none; width: 100%; height: 4px;
+  background: linear-gradient(to right, var(--cyan) var(--pct, 50%), var(--border) var(--pct, 50%));
+  border-radius: 2px; outline: none; cursor: pointer;
+}
+input[type=range]::-webkit-slider-thumb {
+  -webkit-appearance: none; width: 14px; height: 14px; border-radius: 50%;
+  background: var(--cyan); box-shadow: var(--glow-cyan); cursor: pointer;
+}
+.dir-toggles { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+.toggle-item { display: flex; align-items: center; gap: 6px; font-size: 0.7rem; color: var(--text-dim); cursor: pointer; }
+.toggle-switch {
+  width: 32px; height: 18px; border-radius: 9px; background: var(--border);
+  position: relative; cursor: pointer; transition: background 0.2s; flex-shrink: 0;
+}
+.toggle-switch.on-amber { background: var(--amber); box-shadow: var(--glow-amber); }
+.toggle-switch.on-red { background: var(--red); box-shadow: var(--glow-red); }
+.toggle-switch::after {
+  content: ''; position: absolute; top: 2px; left: 2px; width: 14px; height: 14px;
+  border-radius: 50%; background: white; transition: transform 0.2s;
+}
+.toggle-switch.on-amber::after, .toggle-switch.on-red::after { transform: translateX(14px); }
+#panel-intersection { grid-column: 2; grid-row: 1; }
+#intersection-wrap { position: relative; width: 100%; max-width: 460px; height: 420px; margin: 0 auto; }
+#intersection-canvas { width: 100%; height: 100%; display: block; border-radius: 8px; }
+.phase-bar-wrap { margin-top: 12px; padding: 10px 14px; background: var(--surface2); border-radius: 8px; border: 1px solid var(--border); }
+.phase-bar-label { display: flex; justify-content: space-between; align-items: center; font-size: 0.72rem; color: var(--text-dim); margin-bottom: 6px; }
+.phase-bar-label strong { color: var(--green); font-family: 'Roboto Mono', monospace; }
+.phase-bar-track { height: 6px; background: var(--border); border-radius: 3px; overflow: hidden; }
+#phase-bar-fill { height: 100%; background: linear-gradient(90deg, var(--green), var(--cyan)); border-radius: 3px; width: 100%; transition: width 1s linear; box-shadow: 0 0 8px rgba(0, 255, 153, 0.5); }
+.signal-badges { display: flex; gap: 8px; margin-top: 10px; justify-content: center; flex-wrap: wrap; }
+.sig-badge { padding: 4px 10px; border-radius: 14px; font-size: 0.68rem; font-weight: 700; letter-spacing: 0.8px; border: 1px solid; transition: all 0.4s; }
+.sig-green { color: var(--green); background: rgba(0, 255, 153, 0.1); border-color: rgba(0, 255, 153, 0.35); box-shadow: var(--glow-green); }
+.sig-red { color: var(--red); background: rgba(255, 71, 87, 0.08); border-color: rgba(255, 71, 87, 0.25); }
+#panel-ai { grid-column: 3; grid-row: 1; display: flex; flex-direction: column; gap: 12px; }
+.logic-block { background: #0d1117; border: 1px solid var(--border); border-radius: 8px; padding: 12px; font-family: 'Roboto Mono', monospace; font-size: 0.72rem; line-height: 1.8; }
+.logic-line { display: flex; align-items: center; gap: 8px; }
+.lnum { color: #3d444d; min-width: 16px; }
+.lprop { color: var(--text-dim); }
+.ltrue { color: var(--cyan); font-weight: 600; }
+.lfalse { color: var(--amber); }
+.lconc { color: var(--green); font-weight: 700; font-size: 0.8rem; }
+.lbadge { display: inline-block; padding: 1px 6px; border-radius: 4px; background: rgba(0, 212, 255, 0.15); color: var(--cyan); border: 1px solid rgba(0, 212, 255, 0.3); font-size: 0.65rem; }
+.logic-divider { border: none; border-top: 1px solid var(--border); margin: 4px 0; }
+.hc-score-row { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; }
+.hc-score-big { font-size: 2rem; font-weight: 800; color: var(--green); font-family: 'Roboto Mono', monospace; }
+.hc-score-label { font-size: 0.65rem; color: var(--text-dim); }
+.hc-pills { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 6px; }
+.hc-pill { padding: 2px 8px; border-radius: 10px; font-size: 0.65rem; background: var(--surface2); border: 1px solid var(--border); color: var(--text-dim); }
+#hc-chart-wrap { height: 70px; position: relative; }
+.log-wrap { background: #0d1117; border: 1px solid var(--border); border-radius: 8px; max-height: 130px; overflow-y: auto; padding: 8px; }
+.log-row { font-family: 'Roboto Mono', monospace; font-size: 0.68rem; padding: 3px 4px; border-radius: 4px; display: flex; gap: 8px; align-items: center; }
+.log-row:nth-child(even) { background: rgba(255, 255, 255, 0.02); }
+.log-time { color: #3d444d; flex-shrink: 0; }
+.log-action { color: var(--cyan); }
+.log-score { color: var(--text-dim); margin-left: auto; flex-shrink: 0; }
+#panel-analytics { grid-column: 1/-1; grid-row: 2; }
+.analytics-inner { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; }
+.kpi-card { background: var(--surface2); border: 1px solid var(--border); border-radius: 10px; padding: 14px; display: flex; flex-direction: column; gap: 4px; }
+.kpi-label { font-size: 0.68rem; color: var(--text-dim); text-transform: uppercase; letter-spacing: 0.8px; }
+.kpi-value { font-size: 1.6rem; font-weight: 800; font-family: 'Roboto Mono', monospace; line-height: 1.1; }
+.kpi-sub { font-size: 0.65rem; margin-top: 2px; }
+.kpi-green { color: var(--green); } .kpi-cyan { color: var(--cyan); } .kpi-amber { color: var(--amber); }
+.kpi-sub.good { color: var(--green); } .kpi-sub.info { color: var(--cyan); } .kpi-sub.note { color: var(--text-dim); }
+.chart-card { background: var(--surface2); border: 1px solid var(--border); border-radius: 10px; padding: 14px; grid-column: span 2; }
+.chart-card-title { font-size: 0.72rem; color: var(--text-dim); text-transform: uppercase; letter-spacing: 1px; margin-bottom: 10px; }
+.chart-wrap { height: 180px; position: relative; }
+.chart-wrap canvas { position: absolute; top: 0; left: 0; width: 100% !important; height: 100% !important; }
+.sparkline-row { grid-column: 1/-1; display: flex; gap: 10px; }
+.spark-card { flex: 1; background: var(--surface2); border: 1px solid var(--border); border-radius: 8px; padding: 10px; }
+.spark-header { display: flex; justify-content: space-between; font-size: 0.68rem; color: var(--text-dim); margin-bottom: 6px; }
+.spark-val { font-family: 'Roboto Mono', monospace; font-size: 0.85rem; font-weight: 700; }
+.spark-canvas-wrap { height: 36px; position: relative; }
+.spark-canvas-wrap canvas { position: absolute; top: 0; left: 0; width: 100% !important; height: 100% !important; }
+#emergency-banner {
+  display: none; position: fixed; top: 56px; left: 0; right: 0;
+  background: rgba(255, 179, 71, 0.15); border-bottom: 2px solid var(--amber);
+  padding: 8px 24px; text-align: center; font-weight: 700; font-size: 0.8rem;
+  color: var(--amber); letter-spacing: 1px; animation: flash-amber 1s ease-in-out infinite alternate; z-index: 99;
+}
+@keyframes flash-amber { from { opacity: 0.7; } to { opacity: 1; }}
+@media (max-width: 1100px) {
+  #main { grid-template-columns: 1fr 1fr; }
+  #panel-intersection, #panel-ai, #panel-analytics { grid-column: 1/-1; }
+  #panel-ai { flex-direction: row; flex-wrap: wrap; }
+  .analytics-inner { grid-template-columns: 1fr 1fr; }
+  .chart-card { grid-column: span 2; }
+  #intersection-wrap { height: 320px; }
+}
+</style>
+</head>
+<body>
+<header id="header">
+  <div class="header-left">
+    <div class="logo"><span>STLAS</span><span class="logo-sub">Smart Traffic Light AI System</span></div>
+    <div class="status-pill"><div class="status-dot"></div>System Active</div>
+  </div>
+  <div class="header-right">
+    <span id="live-clock">00:00:00</span>
+    <span class="hdr-icon" title="Alerts">🔔</span>
+    <span class="hdr-icon" title="Settings">⚙️</span>
+    <span class="hdr-icon" title="Fullscreen" id="fs-btn">⛶</span>
+  </div>
+</header>
+<div id="emergency-banner">EMERGENCY VEHICLE OVERRIDE ACTIVE - AI Logic Suspended</div>
+<main id="main">
+  <section class="card" id="panel-perception">
+    <div class="card-title"><span class="icon">📡</span> Perception <span class="accent">Input Panel</span></div>
+    <div id="dir-cards"></div>
+    <div style="margin-top: 10px; padding: 10px; background:var(--surface2); border-radius:8px; border:1px solid var(--border);">
+      <div style="font-size:0.7rem; color:var(--text-dim); margin-bottom:8px; text-transform:uppercase; letter-spacing:0.8px;">Global Overrides</div>
+      <div class="toggle-item" style="margin-bottom:8px;" id="global-emergency-toggle">
+        <div class="toggle-switch" id="emg-switch" onclick="toggleEmergency()"></div>
+        <span style="font-size:0.72rem;"> Emergency Vehicle Priority</span>
+      </div>
+      <div class="toggle-item" id="global-pause-toggle">
+        <div class="toggle-switch" id="pause-switch" onclick="togglePause()"></div>
+        <span style="font-size:0.72rem;"> Pause AI Simulation</span>
+      </div>
+    </div>
+  </section>
+
+  <section class="card" id="panel-intersection">
+    <div class="card-title"><span class="icon">🚦</span> Real-Time <span class="accent">Intersection Simulator</span></div>
+    <div id="intersection-wrap"><canvas id="intersection-canvas"></canvas></div>
+    <div class="phase-bar-wrap">
+      <div class="phase-bar-label">
+        <span>Current Phase: <strong id="phase-label">NORTH GREEN</strong></span>
+        <span id="phase-countdown" style="font-family:'Roboto Mono', monospace; font-size:0.75rem; color:var(--green);">00:00</span>
+      </div>
+      <div class="phase-bar-track"><div id="phase-bar-fill"></div></div>
+    </div>
+    <div class="signal-badges" id="signal-badges"></div>
+  </section>
+
+  <section class="card" id="panel-ai" style="overflow-y:auto; max-height:680px;">
+    <div class="card-title"><span class="icon">🧠</span> AI <span class="accent">Reasoning Engine</span></div>
+    <div style="margin-bottom:4px; font-size:0.68rem; color:var(--text-dim); text-transform:uppercase; letter-spacing: 1px;">Propositional Logic</div>
+    <div class="logic-block" id="logic-block">Loading...</div>
+    <div style="margin-top: 12px; margin-bottom:4px; font-size:0.68rem; color:var(--text-dim); text-transform:uppercase; letter-spacing: 1px;">Hill Climbing Optimization</div>
+    <div class="card" style="background:var(--surface2); border-color:var(--border); padding:12px;">
+      <div class="hc-score-row">
+        <div>
+          <div class="hc-score-big" id="hc-score">87</div>
+          <div class="hc-score-label">/ 100 optimization score</div>
+        </div>
+        <div style="text-align:right; font-size:0.7rem; color:var(--text-dim);">
+          <div style="color:var(--green); font-weight:700; font-size:0.85rem;">Converged ✓</div>
+          <div>Cycle <span id="hc-cycle">7</span></div>
+        </div>
+      </div>
+      <div id="hc-chart-wrap"><canvas id="hc-chart"></canvas></div>
+      <div class="hc-pills" id="hc-pills"></div>
+    </div>
+    <div style="margin-top: 12px; margin-bottom:4px; font-size:0.68rem; color:var(--text-dim); text-transform:uppercase; letter-spacing: 1px;">Decision History Log</div>
+    <div class="log-wrap" id="decision-log"></div>
+  </section>
+
+  <section class="card" id="panel-analytics">
+    <div class="card-title"><span class="icon">📊</span> Performance <span class="accent">Analytics</span></div>
+    <div class="analytics-inner">
+      <div class="kpi-card">
+        <div class="kpi-label">Avg Wait Time</div>
+        <div class="kpi-value kpi-green" id="kpi-wait">18s</div>
+        <div class="kpi-sub good" id="kpi-wait-sub">↓ 42% vs Traditional</div>
+      </div>
+      <div class="kpi-card">
+        <div class="kpi-label">Throughput / Cycle</div>
+        <div class="kpi-value kpi-cyan" id="kpi-thru">247</div>
+        <div class="kpi-sub info">↑ 31% improvement</div>
+      </div>
+      <div class="kpi-card">
+        <div class="kpi-label">Emergency Response</div>
+        <div class="kpi-value kpi-amber">0.8s</div>
+        <div class="kpi-sub note">Detection latency</div>
+      </div>
+      <div class="kpi-card">
+        <div class="kpi-label">System Efficiency</div>
+        <div class="kpi-value kpi-green" id="kpi-eff">94%</div>
+        <div class="kpi-sub good">AI-Optimized</div>
+      </div>
+      <div class="chart-card">
+        <div class="chart-card-title">Average Wait Time AI vs Traditional (seconds)</div>
+        <div class="chart-wrap"><canvas id="wait-chart"></canvas></div>
+      </div>
+      <div class="chart-card">
+        <div class="chart-card-title">Vehicle Throughput per Signal Cycle</div>
+        <div class="chart-wrap"><canvas id="thru-chart"></canvas></div>
+      </div>
+      <div class="sparkline-row">
+        <div class="spark-card">
+          <div class="spark-header"><span>North Queue</span><span class="spark-val kpi-cyan" id="sp-n">-</span></div>
+          <div class="spark-canvas-wrap"><canvas id="sp-chart-n"></canvas></div>
+        </div>
+        <div class="spark-card">
+          <div class="spark-header"><span>South Queue</span><span class="spark-val kpi-green" id="sp-s">-</span></div>
+          <div class="spark-canvas-wrap"><canvas id="sp-chart-s"></canvas></div>
+        </div>
+        <div class="spark-card">
+          <div class="spark-header"><span>East Queue</span><span class="spark-val kpi-amber" id="sp-e">-</span></div>
+          <div class="spark-canvas-wrap"><canvas id="sp-chart-e"></canvas></div>
+        </div>
+        <div class="spark-card">
+          <div class="spark-header"><span>West Queue</span><span class="spark-val" style="color:var(--purple)" id="sp-w">-</span></div>
+          <div class="spark-canvas-wrap"><canvas id="sp-chart-w"></canvas></div>
+        </div>
+      </div>
+    </div>
+  </section>
+</main>
+
+<script>
+const DIRS = ['NORTH', 'SOUTH', 'EAST', 'WEST'];
+const DIR_COLORS = { NORTH: '#00d4ff', SOUTH: '#a371f7', EAST: '#ffb347', WEST: '#00ff99' };
+const PHASE_DURATION = 20;
+
+const state = {
+  vehicles: { NORTH: 18, SOUTH: 12, EAST: 20, WEST: 8 },
+  waitTimes: { NORTH: 0, SOUTH: 0, EAST: 0, WEST: 0 },
+  emergency: { NORTH: false, SOUTH: false, EAST: false, WEST: false },
+  closed: { NORTH: false, SOUTH: false, EAST: false, WEST: false },
+  currentGreen: 'NORTH',
+  phaseTime: PHASE_DURATION,
+  phaseMax: PHASE_DURATION,
+  paused: false,
+  globalEmergency: false,
+  hcScores: [60, 63, 67, 70, 72, 75, 78, 80, 81, 83, 85, 87],
+  hcIterations: 142,
+  hcCycle: 7,
+  waitData: { trad: [42, 38, 45, 40, 35, 48, 37, 43], ai: [18, 16, 20, 17, 15, 19, 16, 18] },
+  thruData: { trad: [48, 55, 50, 52, 58, 46, 53, 49], ai: [88, 92, 86, 95, 100, 84, 91, 87] },
+  spQueues: { NORTH: [], SOUTH: [], EAST: [], WEST: [] },
+  decisionLog: [],
+  tick: 0
+};
+
+function updateClock() {
+  const now = new Date();
+  document.getElementById('live-clock').textContent = now.toLocaleTimeString('en-GB');
+}
+setInterval(updateClock, 1000); updateClock();
+
+function updateSliderFill(el) {
+  const pct = ((el.value - el.min) / (el.max - el.min)) * 100;
+  el.style.setProperty('--pct', pct + '%');
+}
+
+function buildPerceptionPanel() {
+  const container = document.getElementById('dir-cards');
+  DIRS.forEach(dir => {
+    const card = document.createElement('div');
+    card.className = 'dir-card';
+    card.id = `dir-card-${dir}`;
+    card.innerHTML = `
+      <div class="dir-card-header">
+        <span class="dir-label" style="color:${DIR_COLORS[dir]}">${dir}</span>
+        <div class="dir-count-badge"> <span id="badge-${dir}">${state.vehicles[dir]}</span></div>
+      </div>
+      <div class="slider-wrap">
+        <input type="range" id="slider-${dir}" min="0" max="50" value="${state.vehicles[dir]}" oninput="onSlider('${dir}', this)" />
+      </div>
+      <div class="dir-toggles">
+        <div class="toggle-item"><div class="toggle-switch" id="emg-${dir}" onclick="onEmergency('${dir}')"></div><span> Emergency</span></div>
+        <div class="toggle-item"><div class="toggle-switch" id="closed-${dir}" onclick="onClosed('${dir}')"></div><span> Closed</span></div>
+      </div>`;
+    container.appendChild(card);
+    updateSliderFill(document.getElementById(`slider-${dir}`));
+  });
+}
+
+function onSlider(dir, el) { 
+  state.vehicles[dir] = parseInt(el.value);
+  document.getElementById(`badge-${dir}`).textContent = el.value; 
+  updateSliderFill(el); 
+  runAI(); 
+}
+
+function onEmergency(dir) { 
+  state.emergency[dir] = !state.emergency[dir];
+  document.getElementById(`emg-${dir}`).className = 'toggle-switch' + (state.emergency[dir] ? ' on-amber' : ''); 
+  runAI(); 
+}
+
+function onClosed(dir) { 
+  state.closed[dir] = !state.closed[dir];
+  document.getElementById(`closed-${dir}`).className = 'toggle-switch' + (state.closed[dir] ? ' on-red' : ''); 
+  runAI(); 
+}
+
+function toggleEmergency() { 
+  state.globalEmergency = !state.globalEmergency;
+  document.getElementById('emg-switch').className = 'toggle-switch' + (state.globalEmergency ? ' on-amber' : ''); 
+  document.getElementById('emergency-banner').style.display = state.globalEmergency ? 'block' : 'none'; 
+  runAI(); 
+}
+
+function togglePause() { 
+  state.paused = !state.paused;
+  document.getElementById('pause-switch').className = 'toggle-switch' + (state.paused ? ' on-amber' : ''); 
+}
+
+async function runAI() {
+  const payload = {};
+  DIRS.forEach(dir => {
+    payload[dir] = {
+      vehicles: state.vehicles[dir],
+      emergency: state.emergency[dir] || state.globalEmergency,
+      road_closed: state.closed[dir],
+      wait_time: state.waitTimes[dir]
+    };
+  });
+
+  try {
+    const response = await fetch('https://smart-traffic-logic.onrender.com/api/evaluate', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
+
+    if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+    
+    const data = await response.json();
+    const aiDecision = data.signals;
+    const metrics = data.metrics;
+    
+    let best = state.currentGreen;
+    for (const [dir, status] of Object.entries(aiDecision)) {
+      if (status === 'GREEN') { best = dir; break; }
+    }
+
+    if (best !== state.currentGreen) {
+      state.currentGreen = best;
+      state.phaseMax = metrics.optimal_duration;
+      state.phaseTime = state.phaseMax;
+      addLog(best, metrics.hc_score);
+      state.hcIterations += metrics.hc_iterations;
+      updateRealHCChart(metrics.hc_score);
+      
+      let mockScores = {};
+      DIRS.forEach(d => mockScores[d] = state.vehicles[d]);
+      updateLogicBlock(best, mockScores);
+      updateSignalBadges();
+      drawIntersection();
+      updatePhaseLabel();
+    }
+  } catch (error) {
+    console.error("Error connecting to AI Core:", error);
+  }
+}
+
+function updateRealHCChart(realScore) {
+  state.hcScores.push(realScore);
+  if (state.hcScores.length > 30) state.hcScores.shift();
+  hcChart.data.datasets[0].data = state.hcScores;
+  hcChart.data.labels = state.hcScores.map((_, i) => i + 1);
+  hcChart.update('none');
+  
+  state.hcCycle++;
+  document.getElementById('hc-score').textContent = realScore;
+  document.getElementById('hc-cycle').textContent = state.hcCycle;
+  document.getElementById('kpi-eff').textContent = realScore + '%';
+  document.getElementById('hc-pills').innerHTML = `
+    <span class="hc-pill">Iterations: ${state.hcIterations}</span>
+    <span class="hc-pill" style="color:var(--green)">Converged: YES</span>
+    <span class="hc-pill">Cycle: ${state.hcCycle}</span>`;
+}
+
+function updateLogicBlock(activeDir, scores) {
+  const v = state.vehicles[activeDir];
+  const emg = state.emergency[activeDir] || state.globalEmergency;
+  const cls = state.closed[activeDir];
+  const threshold = 10;
+  
+  const p1v = v > threshold;
+  const p2v = emg;
+  const p3v = cls;
+  
+  const lines = [
+    { n: 1, prop: `P1: vehicles_${activeDir.toLowerCase()} > ${threshold}`, val: p1v, color: p1v ? 'ltrue' : 'lfalse' },
+    { n: 2, prop: `P2: emergency_active`, val: p2v, color: p2v ? 'ltrue' : 'lfalse' },
+    { n: 3, prop: `P3: road_closed_${activeDir.toLowerCase()}`, val: p3v, color: !p3v ? 'ltrue' : 'lfalse' }
+  ];
+
+  let html = lines.map(l => 
+    `<div class="logic-line"><span class="lnum">${l.n}</span><span class="${l.color}">${l.prop} &rarr; ${l.val ? 'TRUE' : 'FALSE'}</span><span style="margin-left:auto">${l.val ? '✓' : 'X'}</span></div>`
+  ).join('');
+
+  html += `<hr class="logic-divider" /><div class="logic-line"><span class="lnum">4</span><span class="lprop">RULE: IF P1 AND NOT P2 AND NOT P3 &rarr; GRANT_GREEN(${activeDir})</span></div>`;
+  html += `<div class="logic-line"><span class="lnum">5</span><span class="lprop">METHOD: <span class="lbadge">Modus Ponens</span></span></div>`;
+  html += `<div class="logic-line" style="margin-top:4px"><span class="lnum">6</span><span class="lconc">CONCLUSION: ${activeDir} SIGNAL = GREEN</span></div>`;
+  
+  document.getElementById('logic-block').innerHTML = html;
+}
+
+function buildSignalBadges() {
+  const wrap = document.getElementById('signal-badges');
+  DIRS.forEach(dir => {
+    const b = document.createElement('div');
+    b.className = 'sig-badge'; 
+    b.id = `sig-${dir}`; 
+    b.textContent = `${dir[0]}`; 
+    wrap.appendChild(b);
+  });
+}
+
+function updateSignalBadges() {
+  DIRS.forEach(dir => {
+    const el = document.getElementById(`sig-${dir}`);
+    const isGreen = dir === state.currentGreen && !state.closed[dir];
+    el.textContent = `${dir[0]} ${isGreen ? 'GREEN' : 'RED'}`;
+    el.className = 'sig-badge ' + (isGreen ? 'sig-green' : 'sig-red');
+    document.getElementById(`dir-card-${dir}`).classList.toggle('active-dir', isGreen);
+  });
+}
+
+function updatePhaseLabel() { 
+  document.getElementById('phase-label').textContent = `${state.currentGreen} GREEN`; 
+}
+
+let intersectionCanvas, ictx;
+function initIntersectionCanvas() {
+  intersectionCanvas = document.getElementById('intersection-canvas');
+  ictx = intersectionCanvas.getContext('2d');
+  const ro = new ResizeObserver(() => {
+    const wrap = intersectionCanvas.parentElement;
+    const size = wrap.offsetWidth || wrap.getBoundingClientRect().width || 400;
+    if (size > 0) { 
+      intersectionCanvas.width = size; 
+      intersectionCanvas.height = size;
+      drawIntersection(); 
+    }
+  });
+  ro.observe(intersectionCanvas.parentElement);
+  setTimeout(() => {
+    const size = intersectionCanvas.parentElement.offsetWidth || 400;
+    intersectionCanvas.width = size; intersectionCanvas.height = size; drawIntersection();
+  }, 100);
+}
+
+function drawIntersection() {
+  if (!ictx) return;
+  const W = intersectionCanvas.width, H = intersectionCanvas.height, cx = W / 2, cy = H / 2, roadW = W * 0.22, C = ictx;
+  
+  C.clearRect(0, 0, W, H); C.fillStyle = '#0d1117'; C.fillRect(0, 0, W, H);
+  C.fillStyle = 'rgba(48,54,61,0.4)';
+  for (let x = 20; x < W; x += 28) for (let y = 20; y < H; y += 28) { C.beginPath(); C.arc(x, y, 1, 0, Math.PI * 2); C.fill(); }
+  
+  C.fillStyle = '#1c2333'; C.fillRect(cx - roadW / 2, 0, roadW, H); C.fillRect(0, cy - roadW / 2, W, roadW);
+  C.fillStyle = '#222b3a'; C.fillRect(cx - roadW / 2, cy - roadW / 2, roadW, roadW);
+  
+  C.setLineDash([12, 10]); C.strokeStyle = 'rgba(255,255,255,0.12)'; C.lineWidth = 2;
+  C.beginPath(); C.moveTo(cx, 0); C.lineTo(cx, cy - roadW / 2); C.moveTo(cx, cy + roadW / 2); C.lineTo(cx, H); C.stroke();
+  C.beginPath(); C.moveTo(0, cy); C.lineTo(cx - roadW / 2, cy); C.moveTo(cx + roadW / 2, cy); C.lineTo(W, cy); C.stroke();
+  
+  C.setLineDash([]); C.strokeStyle = 'rgba(255,255,255,0.25)'; C.lineWidth = 3; const edge = roadW / 2;
+  C.beginPath(); C.moveTo(cx - edge, cy - edge - 4); C.lineTo(cx + edge, cy - edge - 4);
+  C.moveTo(cx - edge, cy + edge + 4); C.lineTo(cx + edge, cy + edge + 4);
+  C.moveTo(cx - edge - 4, cy - edge); C.lineTo(cx - edge - 4, cy + edge);
+  C.moveTo(cx + edge + 4, cy - edge); C.lineTo(cx + edge + 4, cy + edge); C.stroke();
+  
+  drawTrafficLight(C, cx - edge - 18, cy - edge - 18, state.currentGreen === 'NORTH' && !state.closed.NORTH);
+  drawTrafficLight(C, cx + edge + 10, cy + edge + 10, state.currentGreen === 'SOUTH' && !state.closed.SOUTH);
+  drawTrafficLight(C, cx + edge + 10, cy - edge - 18, state.currentGreen === 'EAST' && !state.closed.EAST);
+  drawTrafficLight(C, cx - edge - 18, cy + edge + 10, state.currentGreen === 'WEST' && !state.closed.WEST);
+  
+  drawVehicles(C, W, H, cx, cy, roadW); drawDirectionArrow(C, cx, cy, state.currentGreen);
+  
+  C.font = `bold ${W * 0.032}px Inter`; C.fillStyle = '#8b949e'; C.textAlign = 'center';
+  C.fillText('NORTH', cx, 20); C.fillText('SOUTH', cx, H - 6);
+  C.textAlign = 'left'; C.fillText('WEST', 5, cy + 5); C.textAlign = 'right'; C.fillText('EAST', W - 5, cy + 5);
+}
+
+function drawTrafficLight(C, x, y, isGreen) {
+  const r = 7; C.fillStyle = '#1c2333'; C.strokeStyle = '#30363d'; C.lineWidth = 1;
+  C.beginPath(); C.roundRect(x, y, r * 2 + 4, r * 6 + 8, 4); C.fill(); C.stroke();
+  C.beginPath(); C.arc(x + r + 2, y + r + 2, r, 0, Math.PI * 2); C.fillStyle = isGreen ? '#2a1a1a' : '#ff4757';
+  if (!isGreen) { C.shadowColor = '#ff4757'; C.shadowBlur = 10; } C.fill(); C.shadowBlur = 0;
+  C.beginPath(); C.arc(x + r + 2, y + r * 3 + 6, r, 0, Math.PI * 2); C.fillStyle = isGreen ? '#00ff99' : '#1a2a1a';
+  if (isGreen) { C.shadowColor = '#00ff99'; C.shadowBlur = 14; } C.fill(); C.shadowBlur = 0;
+}
+
+function drawVehicles(C, W, H, cx, cy, roadW) {
+  const carW = roadW * 0.22, carH = roadW * 0.12, edge = roadW / 2, maxCars = 8;
+  const dirs_config = {
+    NORTH: { axis: 'y', sign: -1, lane: cx - roadW * 0.2, from: cy - edge - 10 },
+    SOUTH: { axis: 'y', sign: 1, lane: cx + roadW * 0.2, from: cy + edge + 10 },
+    EAST: { axis: 'x', sign: 1, lane: cy + roadW * 0.2, from: cx + edge + 10 },
+    WEST: { axis: 'x', sign: -1, lane: cy - roadW * 0.2, from: cx - edge - 10 }
+  };
+  DIRS.forEach(dir => {
+    if (state.closed[dir]) return;
+    const count = Math.min(state.vehicles[dir], maxCars), cfg = dirs_config[dir], color = DIR_COLORS[dir];
+    for (let i = 0; i < count; i++) {
+      const gap = i * (carH * 1.5 + 4); let x, y, w, h;
+      if (cfg.axis === 'y') { x = cfg.lane - carW / 2; y = cfg.from + cfg.sign * gap - (cfg.sign > 0 ? 0 : carH); w = carW; h = carH; }
+      else { y = cfg.lane - carH / 2; x = cfg.from + cfg.sign * gap - (cfg.sign > 0 ? 0 : carW); w = carH; h = carW; }
+      C.fillStyle = color + '99'; C.strokeStyle = color; C.lineWidth = 1; C.beginPath();
+      C.roundRect(x, y, w, h, 2); C.fill(); C.stroke();
+      C.fillStyle = 'rgba(255,255,255,0.2)'; C.beginPath(); 
+      if (cfg.axis === 'y') C.roundRect(x + 2, y + 2, w - 4, h * 0.35, 1); 
+      else C.roundRect(x + 2, y + 2, w * 0.35, h - 4, 1); C.fill();
+    }
+    if (state.vehicles[dir] > maxCars) {
+      const extra = state.vehicles[dir] - maxCars, gapLast = maxCars * (carH * 1.5 + 4); let tx, ty;
+      if (cfg.axis === 'y') { tx = cfg.lane; ty = cfg.from + cfg.sign * gapLast + cfg.sign * 10; } 
+      else { tx = cfg.from + cfg.sign * gapLast + cfg.sign * 10; ty = cfg.lane; }
+      C.fillStyle = color; C.font = 'bold 9px Inter'; C.textAlign = 'center'; C.fillText(`+${extra}`, tx, ty);
+    }
+  });
+}
+
+function drawDirectionArrow(C, cx, cy, dir) {
+  const size = 28; let ax = cx, ay = cy, angle = 0;
+  if (dir === 'NORTH') { ay = cy - 40; angle = -Math.PI / 2; } 
+  else if (dir === 'SOUTH') { ay = cy + 40; angle = Math.PI / 2; } 
+  else if (dir === 'EAST') { ax = cx + 40; angle = 0; } 
+  else if (dir === 'WEST') { ax = cx - 40; angle = Math.PI; }
+  
+  C.save(); C.translate(ax, ay); C.rotate(angle); C.shadowColor = '#00ff99'; C.shadowBlur = 20; C.fillStyle = '#00ff99';
+  C.beginPath(); C.moveTo(size, 0); C.lineTo(-size * 0.5, -size * 0.5); C.lineTo(-size * 0.5, size * 0.5); C.closePath(); C.fill(); C.shadowBlur = 0; C.restore();
+}
+
+function addLog(dir, score) {
+  const ts = new Date().toLocaleTimeString('en-GB');
+  state.decisionLog.unshift({ ts, dir, score });
+  if (state.decisionLog.length > 20) state.decisionLog.pop();
+  document.getElementById('decision-log').innerHTML = state.decisionLog.map(l => 
+    `<div class="log-row"><span class="log-time">${l.ts}</span><span class="log-action">&rarr; ${l.dir} GREEN</span><span class="log-score">[Score: ${l.score}]</span></div>`
+  ).join('');
+}
+
+let hcChart;
+function initHCChart() {
+  hcChart = new Chart(document.getElementById('hc-chart').getContext('2d'), {
+    type: 'line', 
+    data: { 
+      labels: state.hcScores.map((_, i) => i + 1), 
+      datasets: [{ data: state.hcScores, borderColor: '#00ff99', backgroundColor: 'rgba(0,255,153,0.08)', borderWidth: 2, pointRadius: 0, tension: 0.4, fill: true }] 
+    },
+    options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false }, tooltip: { enabled: false } }, scales: { x: { display: false }, y: { display: false, min: 50, max: 105 } }, animation: { duration: 400 } }
+  });
+}
+
+let waitChart, thruChart;
+const timeLabels = ['09:00', '10:00', '11:00', '12:00', '13:00', '14:00', '15:00', '17:00'];
+function initPerformanceCharts() {
+  const chartDefaults = { responsive: true, maintainAspectRatio: false, plugins: { legend: { labels: { color: '#8b949e', font: { size: 11 }, boxWidth: 12 } } }, scales: { x: { ticks: { color: '#8b949e', font: { size: 10 } }, grid: { color: 'rgba(48,54,61,0.5)' } }, y: { ticks: { color: '#8b949e', font: { size: 10 } }, grid: { color: 'rgba(48,54,61,0.5)' } } }, animation: { duration: 600 } };
+  waitChart = new Chart(document.getElementById('wait-chart').getContext('2d'), { 
+    type: 'line', data: { labels: timeLabels, datasets: [{ label: 'Traditional', data: state.waitData.trad, borderColor: '#ff4757', backgroundColor: 'rgba(255,71,87,0.1)', borderWidth: 2, pointRadius: 3, tension: 0.4, fill: true }, { label: 'AI-Optimized', data: state.waitData.ai, borderColor: '#00ff99', backgroundColor: 'rgba(0,255,153,0.08)', borderWidth: 2, pointRadius: 3, tension: 0.4, fill: true }] }, options: { ...chartDefaults } 
+  });
+  thruChart = new Chart(document.getElementById('thru-chart').getContext('2d'), { 
+    type: 'bar', data: { labels: timeLabels, datasets: [{ label: 'Traditional', data: state.thruData.trad, backgroundColor: 'rgba(255,71,87,0.65)', borderRadius: 4 }, { label: 'AI', data: state.thruData.ai, backgroundColor: 'rgba(0,255,153,0.65)', borderRadius: 4 }] }, options: { ...chartDefaults } 
+  });
+}
+
+function updatePerformanceCharts() {
+  const pushPop = (arr, newVal) => { arr.push(newVal); if (arr.length > 8) arr.shift(); };
+  pushPop(state.waitData.trad, Math.round(30 + Math.random() * 20));
+  pushPop(state.waitData.ai, Math.round(12 + Math.random() * 10)); waitChart.update('none');
+  pushPop(state.thruData.trad, Math.round(45 + Math.random() * 20));
+  pushPop(state.thruData.ai, Math.round(80 + Math.random() * 25)); thruChart.update('none');
+  
+  const avgWait = Math.round(state.waitData.ai.reduce((a, b) => a + b, 0) / state.waitData.ai.length);
+  document.getElementById('kpi-wait').textContent = avgWait + 's';
+  document.getElementById('kpi-wait-sub').textContent = `↓ ${Math.round(100 - (avgWait / (state.waitData.trad.reduce((a, b) => a + b, 0) / state.waitData.trad.length)) * 100)}% vs Traditional`;
+  document.getElementById('kpi-thru').textContent = Math.round(state.thruData.ai.reduce((a, b) => a + b, 0) / state.thruData.ai.length);
+}
+
+const sparkCharts = {};
+function initSparklines() {
+  const cfg = (color) => ({ 
+    type: 'line', data: { labels: Array(30).fill(''), datasets: [{ data: Array(30).fill(0), borderColor: color, borderWidth: 1.5, pointRadius: 0, tension: 0.4, fill: false }] },
+    options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false }, tooltip: { enabled: false } }, scales: { x: { display: false }, y: { display: false } }, animation: { duration: 300 } } 
+  });
+  sparkCharts.NORTH = new Chart(document.getElementById('sp-chart-n').getContext('2d'), cfg('#00d4ff')); 
+  sparkCharts.SOUTH = new Chart(document.getElementById('sp-chart-s').getContext('2d'), cfg('#00ff99'));
+  sparkCharts.EAST = new Chart(document.getElementById('sp-chart-e').getContext('2d'), cfg('#ffb347')); 
+  sparkCharts.WEST = new Chart(document.getElementById('sp-chart-w').getContext('2d'), cfg('#a371f7'));
+}
+
+function updateSparklines() {
+  DIRS.forEach(dir => {
+    const v = state.vehicles[dir] + Math.floor(Math.random() * 6 - 3);
+    state.spQueues[dir].push(Math.max(0, Math.min(50, v)));
+    if (state.spQueues[dir].length > 30) state.spQueues[dir].shift();
+    sparkCharts[dir].data.datasets[0].data = state.spQueues[dir];
+    sparkCharts[dir].update('none');
+    if (document.getElementById(`sp-${dir[0].toLowerCase()}`)) {
+      document.getElementById(`sp-${dir[0].toLowerCase()}`).textContent = v;
+    }
+  });
+}
+
+function tickPhase() {
+  if (state.paused) return;
+  state.phaseTime = Math.max(0, state.phaseTime - 1);
+  document.getElementById('phase-bar-fill').style.width = ((state.phaseTime / state.phaseMax) * 100) + '%';
+  document.getElementById('phase-countdown').textContent = `${Math.floor(state.phaseTime / 60).toString().padStart(2, '0')}:${(state.phaseTime % 60).toString().padStart(2, '0')}`;
+  
+  DIRS.forEach(dir => {
+    if (dir === state.currentGreen) state.waitTimes[dir] = 0;
+    else if (state.vehicles[dir] > 0) state.waitTimes[dir] += 1;
+    else state.waitTimes[dir] = 0;
+  });
+  
+  if (state.phaseTime === 0) {
+    const candidates = DIRS.filter(d => !state.closed[d] && d !== state.currentGreen);
+    if (candidates.length) {
+      state.currentGreen = candidates.reduce((a, b) => state.vehicles[a] >= state.vehicles[b] ? a : b);
+    }
+    state.phaseMax = 10 + Math.floor(state.vehicles[state.currentGreen] * 0.6);
+    state.phaseTime = state.phaseMax;
+    addLog(state.currentGreen, state.hcScores[state.hcScores.length - 1] || 85);
+    updateLogicBlock(state.currentGreen, {}); 
+    updateSignalBadges(); 
+    updatePhaseLabel();
+    drawIntersection();
+  }
+}
+
+function jitterVehicles() {
+  if (state.paused) return;
+  DIRS.forEach(dir => {
+    const newVal = Math.max(0, Math.min(50, state.vehicles[dir] + Math.floor(Math.random() * 5 - 2)));
+    state.vehicles[dir] = newVal;
+    if (document.getElementById(`badge-${dir}`)) {
+      document.getElementById(`badge-${dir}`).textContent = newVal;
+    }
+    const sl = document.getElementById(`slider-${dir}`);
+    if (sl) { sl.value = newVal; updateSliderFill(sl); }
+  });
+}
+
+window.addEventListener('load', () => {
+  buildPerceptionPanel(); 
+  buildSignalBadges();
+  addLog('NORTH', 87); addLog('EAST', 81); addLog('SOUTH', 79); addLog('NORTH', 85); addLog('WEST', 72);
+  initIntersectionCanvas();
+  
+  requestAnimationFrame(() => {
+    setTimeout(() => {
+      initHCChart();
+      initPerformanceCharts();
+      initSparklines();
+      updateSparklines();
+      runAI();
+      updateSignalBadges();
+      updatePhaseLabel();
+      setInterval(tickPhase, 1000);
+      setInterval(() => { if (!state.paused) updateSparklines(); }, 1200);
+      setInterval(() => { if (!state.paused) updatePerformanceCharts(); }, 5000);
+      setInterval(() => { if (!state.paused) { jitterVehicles(); runAI(); } }, 4000);
+    }, 200);
+  });
+});
+
+document.getElementById('fs-btn').addEventListener('click', () => {
+  if (!document.fullscreenElement) document.documentElement.requestFullscreen();
+  else document.exitFullscreen();
+});
+</script>
+</body>
+</html>
